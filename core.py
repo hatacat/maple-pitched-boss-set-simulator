@@ -199,9 +199,8 @@ def pitched_set_gen(num): # output : State
 
 # 칠흑 부위별 변화량
 def get_pitched_set_change(is_pitched, star, additional_option, exchange_rate_dict, state_to_final, pitched_num_init=0, is_print=False): # output : total state
-    before_name=['트왈','파풀','분자벨','도미','에스텔라','이벤링','성배']
-    after_name=['루컨','마깃','몽벨','고근','커포','거공','마도서']
-        
+    before_name=['트왈','파풀','분자벨','이벤링','에스텔라','도미','성배']
+    after_name=['루컨','마깃','몽벨','거공','커포','고근','마도서']
     dawn_num=4
     pitched_num=pitched_num_init
     if is_print:
@@ -237,7 +236,58 @@ def get_pitched_set_change(is_pitched, star, additional_option, exchange_rate_di
         print("\n")
     return result.calculate_total(exchange_rate_dict,state_to_final)
     
+# 스페어 강화 고려 (is_pitched3 : 3진법 (0: 실패, 1: target_star 성공, 2: 스페어 next_target_star 성공)
+def get_pitched_set_change_spare(is_pitched, star, star_next, additional_option, exchange_rate_dict, state_to_final, pitched_num_init=0, is_print=False): # output : total state
+    before_name=['트왈','파풀','분자벨','이벤링','에스텔라','도미','성배']
+    after_name=['루컨','마깃','몽벨','거공','커포','고근','마도서']
+        
+    dawn_num=4
+    pitched_num=pitched_num_init
+    if is_print:
+        print("변경전 칠흑 ",pitched_num,"셋, 여명 ",dawn_num,"셋 \n")
+    
+    dawn_num=dawn_num+np.sum((is_pitched!=0)*np.array([-1,0,0,0,-1,0,0]))
+    pitched_num+=np.sum(is_pitched!=0)
+    if is_print:
+        print("변경이후 칠흑 ",pitched_num,"셋, 여명 ",dawn_num,"셋 \n")
+    # set initial item
+    change_item=[]
+    change_item_next=[]
+    for i in range(7):
+        after=equip_gen(after_name[i],star[i],additional_option)
+        before=equip_gen(before_name[i],22,additional_option)
+        after.sub(before)
+        change_item.append(after)
 
+    for i in range(7):
+        after=equip_gen(after_name[i],star_next[i],additional_option)
+        before=equip_gen(before_name[i],22,additional_option)
+        after.sub(before)
+        change_item_next.append(after)
+
+    # apply change
+    result=State()
+    for ind, i in enumerate(is_pitched==1):
+        if i:
+            result.add(change_item[ind])
+
+    for ind, i in enumerate(is_pitched==2):
+        if i:
+            result.add(change_item_next[ind])
+            
+    # apply set effect
+    result.add(pitched_set_gen(pitched_num))
+    result.add(dawn_set_gen(dawn_num))
+    result.sub(dawn_set_gen(4))
+    result.sub(pitched_set_gen(pitched_num_init))
+    
+    if is_print:
+        print("변경 스탯들")
+        result.show()
+        print("\n")
+    return result.calculate_total(exchange_rate_dict,state_to_final)
+    
+    
 def cashing_final_damage(star,additional_option,exchange_rate_dict,state_to_final,pitched_num_init=0):
     # cashing is_pitched > final_damage array
     cashed_data=[]
@@ -248,5 +298,33 @@ def cashing_final_damage(star,additional_option,exchange_rate_dict,state_to_fina
     cashed_data=np.array(cashed_data)
     return np.array(cashed_data)
 
+def unzip(index,base,n):
+    result=np.zeros(n,dtype=int)
+    temp=index    
+    for i in range(n):
+        result[i]=temp//(base**(n-i-1))
+        temp=temp%(base**(n-i-1))    
+    # check
+    for i in result:
+        if i>=base:
+            print("error in length! : ",result)
+            break    
+    return result
 
-        
+def cashing_final_damage_spare(star,star_next,additional_option,exchange_rate_dict,state_to_final,pitched_num_init=0):
+    # cashing is_pitched(base 3) > final_damage array
+    cashed_data=[]
+    for i in range(3**7):
+        is_pitched=unzip(i,3,7)
+        temp=get_pitched_set_change_spare(is_pitched, star, star_next, additional_option, exchange_rate_dict,state_to_final, pitched_num_init)
+        cashed_data.append(temp)
+        #print(is_pitched,temp)
+    cashed_data=np.array(cashed_data)
+    return np.array(cashed_data)
+
+def dict2arr(dictionary, ind_list):
+    result=np.zeros_like(ind_list,dtype=float)
+    for ind,i in enumerate(ind_list):
+        result[ind]=dictionary[i]
+    return result
+
